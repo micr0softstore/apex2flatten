@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-VERSION = "0.1"
+VERSION = "0.2"
 
 def run(cmd):
     subprocess.check_call(cmd)
@@ -29,13 +29,11 @@ def fix_ownership(path, uid, gid):
             p = os.path.join(root, d)
             os.lchown(p, uid, gid)
             os.chmod(p, 0o755)
-
         for f in files:
             p = os.path.join(root, f)
             os.lchown(p, uid, gid)
             if not os.path.islink(p):
                 os.chmod(p, 0o644)
-
     os.lchown(path, uid, gid)
 
 def parse_args():
@@ -44,16 +42,8 @@ def parse_args():
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
 
-    parser.add_argument(
-        "--input",
-        help="Path to .apex file",
-    )
-
-    parser.add_argument(
-        "--version",
-        action="store_true",
-        help="Show program version and exit"
-    )
+    parser.add_argument("--input", help="Path to .apex file")
+    parser.add_argument("--version", action="store_true", help="Show version and exit")
 
     args = parser.parse_args()
 
@@ -86,6 +76,8 @@ def main():
     tmp_zip = tempfile.TemporaryDirectory(prefix="apex_zip_")
     tmp_mount = tempfile.TemporaryDirectory(prefix="apex_mount_")
 
+    has_pubkey = False
+
     try:
         print("[*] Unpacking APEX zip...")
         run(["unzip", "-q", str(apex_path), "-d", tmp_zip.name])
@@ -98,13 +90,7 @@ def main():
         pubkey = Path(tmp_zip.name) / "apex_pubkey"
 
         print("[*] Mounting apex_payload.img...")
-        run([
-            "mount",
-            "-o", "loop,ro",
-            "-t", "ext4",
-            str(payload),
-            tmp_mount.name
-        ])
+        run(["mount", "-o", "loop,ro", "-t", "ext4", str(payload), tmp_mount.name])
 
         print("[*] Copying filesystem...")
         shutil.copytree(
@@ -117,6 +103,7 @@ def main():
         if pubkey.exists():
             print("[*] Copying apex_pubkey...")
             shutil.copy2(pubkey, out_dir / "apex_pubkey")
+            has_pubkey = True
 
         print("[*] Exporting permissions and SELinux contexts...")
         perm_file = cwd / "apex_config"
@@ -141,6 +128,10 @@ def main():
                     except Exception:
                         s_out.write(f"{rel} u:object_r:unlabeled:s0\n")
 
+            if has_pubkey:
+                p_out.write("apex_pubkey 0o644\n")
+                s_out.write("apex_pubkey u:object_r:system_file:s0\n")
+
         print("[*] Unmounting image...")
         run(["umount", tmp_mount.name])
 
@@ -154,7 +145,7 @@ def main():
         os.chmod(sectx_file, 0o644)
 
         print("[✓] Done")
-        print(f"    Output dir: {out_dir}")
+        print("    apex_pubkey registered explicitly")
 
     finally:
         subprocess.run(["umount", tmp_mount.name], stderr=subprocess.DEVNULL)
