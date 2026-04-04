@@ -81,6 +81,10 @@ def main():
     try:
         print("[*] Unpacking APEX zip...")
         run(["unzip", "-q", str(apex_path), "-d", tmp_zip.name])
+        og_apex = Path(tmp_zip.name) / "original_apex"
+        if og_apex.exists():
+            print("[*] Detected original_apex, extracting it")
+            run(["unzip", "-q", "-o", str(og_apex), "-d", tmp_zip.name])
 
         payload = Path(tmp_zip.name) / "apex_payload.img"
         if not payload.exists():
