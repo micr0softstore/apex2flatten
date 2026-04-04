@@ -8,7 +8,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-VERSION = "0.2"
+VERSION = "0.3"
 
 def run(cmd):
     subprocess.check_call(cmd)
